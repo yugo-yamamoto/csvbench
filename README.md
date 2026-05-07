@@ -112,24 +112,24 @@
 
 ## パーサーの実装方針
 
-| 言語・実装 | 手法 | RFC 4180 対応 | SIMD 最適化 |
+| 言語・実装 | 手法 | パーサー区分 | SIMD 最適化 |
 |-----------|------|:---:|:---:|
-| Python | 標準 `csv.DictReader`（C実装） | ✅ 元から対応 | ❌ |
-| Python + pandas | `pd.read_csv`（C実装） | ✅ 元から対応 | ❌ |
-| **Python + Polars** | **`scan_csv` lazy API（Rust製 Arrow2 エンジン）** | ✅ | ✅ `memchr` AVX2 |
-| Go | 標準 `encoding/csv` | ✅ 元から対応 | ✅ `bytes.IndexByte` AVX2 |
-| Ruby | 標準 `CSV.foreach` | ✅ 元から対応 | ❌ |
-| Ruby + SQLite | sqlite3 CLI `.import` | ✅ | ❌ |
-| JavaScript (手書き) | `createReadStream` 64KB + RFC 4180 ステートマシン | ✅ 自前実装 | ❌ |
-| **JavaScript + csv-parse** | **async iterator ストリーム** | ✅ | ❌ |
-| **JavaScript + PapaParse** | **`step` コールバックストリーム** | ✅ | ❌ |
-| Java (手書き) | `BufferedReader` + 文字単位 RFC 4180 パーサー | ✅ 自前実装 | ❌ |
-| **Java + univocity-parsers** | **バッファ再利用・アロケーション最小化** | ✅ | ❌ |
-| C++ | `fread` 64KB バッファ + RFC 4180 パーサー | ✅ 自前実装 | ❌ |
-| Rust (手書き) | `BufReader::with_capacity(65536)` + RFC 4180 パーサー | ✅ 自前実装 | ❌ |
-| **Rust + csv crate** | **`csv::ReaderBuilder` + `memchr` SIMD スキャン** | ✅ | ✅ `memchr` AVX2 |
-| **Bash + DuckDB** | **`read_csv()` 直接クエリ (SIMD + vectorized 集計)** | ✅ | ✅ vectorized |
-| Bash + SQLite | sqlite3 CLI `.import` + SQL query | ✅ | ❌ |
+| Python | 標準 `csv.DictReader`（C実装） | 標準モジュール | ❌ |
+| Python + pandas | `pd.read_csv`（C実装） | 外部モジュール | ❌ |
+| **Python + Polars** | **`scan_csv` lazy API（Rust製 Arrow2 エンジン）** | 外部モジュール | ✅ `memchr` AVX2 |
+| Go | 標準 `encoding/csv` | 標準モジュール | ✅ `bytes.IndexByte` AVX2 |
+| Ruby | 標準 `CSV.foreach` | 標準モジュール | ❌ |
+| Ruby + SQLite | sqlite3 CLI `.import` | 外部モジュール | ❌ |
+| JavaScript (手書き) | `createReadStream` 64KB + RFC 4180 ステートマシン | 自前実装 | ❌ |
+| **JavaScript + csv-parse** | **async iterator ストリーム** | 外部モジュール | ❌ |
+| **JavaScript + PapaParse** | **`step` コールバックストリーム** | 外部モジュール | ❌ |
+| Java (手書き) | `BufferedReader` + 文字単位 RFC 4180 パーサー | 自前実装 | ❌ |
+| **Java + univocity-parsers** | **バッファ再利用・アロケーション最小化** | 外部モジュール | ❌ |
+| C++ | `fread` 64KB バッファ + RFC 4180 パーサー | 自前実装 | ❌ |
+| Rust (手書き) | `BufReader::with_capacity(65536)` + RFC 4180 パーサー | 自前実装 | ❌ |
+| **Rust + csv crate** | **`csv::ReaderBuilder` + `memchr` SIMD スキャン** | 外部モジュール | ✅ `memchr` AVX2 |
+| **Bash + DuckDB** | **`read_csv()` 直接クエリ (SIMD + vectorized 集計)** | エンジン組み込み | ✅ vectorized |
+| Bash + SQLite | sqlite3 CLI `.import` + SQL query | エンジン組み込み | ❌ |
 
 JavaScript・Java・C++・Rust の手書き実装はいずれも標準ライブラリに RFC 4180 準拠の CSV パーサーがないため、
 クォートフィールド・`""` エスケープ・フィールド内改行を正しく扱うパーサーをゼロから実装した。
