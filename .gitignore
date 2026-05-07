@@ -1,0 +1,20 @@
+# Generated test data (large file, regenerate with generate_data.py)
+data/
+
+# Compiled outputs
+bench/java/out/
+bench/cpp/bench
+bench/rust/target/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Ruby
+.ruby-version
+bench/ruby/.ruby-version
+bench/ruby_sqlite_import/.ruby-version
+
+# SQLite temp files
+/tmp/csvbench_*.db
