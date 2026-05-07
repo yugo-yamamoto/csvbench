@@ -120,4 +120,9 @@ g++ -O2 -std=c++20 -o "$ROOT/bench/cpp/bench" "$ROOT/bench/cpp/bench.cpp"
 header "Bash + SQLite ($(sqlite3 --version | awk '{print $1}'))"
 bash "$ROOT/bench/bash_sqlite/bench.sh" "$DATA"
 
+# ── 11. Bash + DuckDB ────────────────────────────────────────────────────────
+
+header "Bash + DuckDB ($(duckdb --version 2>/dev/null || ${DUCKDB_CLI:-/root/.duckdb/cli/latest/duckdb} --version))"
+DUCKDB_CLI="${DUCKDB_CLI:-/root/.duckdb/cli/latest/duckdb}" bash "$ROOT/bench/bash_duckdb/bench.sh" "$DATA"
+
 ok "All benchmarks complete."
