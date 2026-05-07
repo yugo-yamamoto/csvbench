@@ -1,0 +1,8 @@
+{
+  "name": "csvbench-js-papaparse",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "papaparse": "^5"
+  }
+}

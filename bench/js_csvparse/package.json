@@ -1,0 +1,8 @@
+{
+  "name": "csvbench-js-csvparse",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "csv-parse": "^5"
+  }
+}

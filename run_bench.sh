@@ -29,6 +29,11 @@ uv run --python 3.13 "$ROOT/bench/python/bench.py"
 header "Python + pandas (uv / CPython 3.13)"
 uv run --python 3.13 --with pandas "$ROOT/bench/python_pandas/bench.py"
 
+# ── 3b. Python + Polars ──────────────────────────────────────────────────────
+
+header "Python + Polars (uv / CPython 3.13)"
+(cd "$ROOT/bench/python_polars" && uv run bench.py "$DATA")
+
 # ── 4. JavaScript ────────────────────────────────────────────────────────────
 
 header "JavaScript (Node.js $(node --version))"
@@ -37,6 +42,16 @@ export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh"
 nvm use node --silent
 node "$ROOT/bench/js/bench.mjs"
+
+# ── 4b. JavaScript + csv-parse ───────────────────────────────────────────────
+
+header "JavaScript + csv-parse (Node.js $(node --version))"
+node "$ROOT/bench/js_csvparse/bench.mjs"
+
+# ── 4c. JavaScript + PapaParse ───────────────────────────────────────────────
+
+header "JavaScript + PapaParse (Node.js $(node --version))"
+node "$ROOT/bench/js_papaparse/bench.mjs"
 
 # ── 5. Go ────────────────────────────────────────────────────────────────────
 
@@ -53,6 +68,13 @@ JAVA_OUT="$ROOT/bench/java/out"
 mkdir -p "$JAVA_OUT"
 "$JAVAC" -d "$JAVA_OUT" "$ROOT/bench/java/BenchCSV.java"
 "$JAVA_BIN" -cp "$JAVA_OUT" BenchCSV
+
+# ── 6b. Java + univocity-parsers ─────────────────────────────────────────────
+
+header "Java + univocity-parsers ($(java --version 2>&1 | head -1))"
+JAVA_UNI_DIR="$ROOT/bench/java_univocity"
+"$JAVAC" -cp "$JAVA_UNI_DIR/lib/univocity-parsers.jar" -d "$JAVA_UNI_DIR" "$JAVA_UNI_DIR/BenchUnivocity.java"
+"$JAVA_BIN" -cp "$JAVA_UNI_DIR:$JAVA_UNI_DIR/lib/univocity-parsers.jar" BenchUnivocity "$DATA"
 
 # ── 7. Ruby ──────────────────────────────────────────────────────────────────
 
@@ -80,6 +102,12 @@ header "Rust ($(source "$HOME/.cargo/env" && rustc --version | awk '{print $2}')
 source "$HOME/.cargo/env"
 cargo build --release --manifest-path "$ROOT/bench/rust/Cargo.toml" --quiet
 "$ROOT/bench/rust/target/release/bench" "$DATA"
+
+# ── 9b. Rust + csv crate ─────────────────────────────────────────────────────
+
+header "Rust + csv crate (--release)"
+cargo build --release --manifest-path "$ROOT/bench/rust_csv/Cargo.toml" --quiet
+"$ROOT/bench/rust_csv/target/release/bench-csv-crate" "$DATA"
 
 # ── 10. C++ ──────────────────────────────────────────────────────────────────
 

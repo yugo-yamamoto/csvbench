@@ -41,55 +41,85 @@
 
 | # | 言語・実装 | バージョン | ライブラリ・手法 | 時間 |
 |---|-----------|-----------|----------------|-----:|
-| 1 | Go | go1.25.2 | 標準 `encoding/csv` | **0.344s** |
-| 2 | Ruby + SQLite (CLI import) | 3.4.8 / ActiveRecord 8.1.3 | `sqlite3` CLI `.import` + AR query | **0.635s** |
-| 3 | C++ | g++ 13.3 `-O2` | `fread` 64KB バッファ + RFC 4180 パーサー | **0.636s** |
-| 4 | Rust | rustc 1.95.0 `--release` | `BufReader` 64KB + RFC 4180 パーサー | **0.655s** |
-| 5 | Python + pandas | CPython 3.13 (uv) | `read_csv(chunksize=50000)` + chunk `groupby` | **0.845s** |
-| 6 | JavaScript | Node.js v25.4.0 | `createReadStream` 64KB + RFC 4180 ステートマシン | **0.900s** |
-| 7 | Java | OpenJDK 21 | `BufferedReader` + RFC 4180 文字単位パーサー | **1.628s** |
-| 8 | Bash + SQLite | bash 5.2 / sqlite3 3.45.1 | `sqlite3` CLI `.import` + `printf` query | **1.815s** |
-| 9 | Python | CPython 3.13 (uv) | 標準 `csv.DictReader` | **2.284s** |
-| 10 | Ruby | 3.4.8 (rbenv) | 標準 `CSV.foreach` | **11.433s** |
+| 1 | **Python + Polars** | CPython 3.13 / Polars 1.40 | `scan_csv` lazy API (SIMD + Arrow2) | **0.084s** |
+| 2 | **Rust + csv crate** | rustc 1.95.0 `--release` | `csv` クレート (`memchr` SIMD スキャン) | **0.236s** |
+| 3 | Go | go1.25.2 | 標準 `encoding/csv` (`bytes.IndexByte` AVX2) | **0.396s** |
+| 4 | C++ | g++ 13.3 `-O2` | `fread` 64KB バッファ + RFC 4180 パーサー | **0.642s** |
+| 5 | Ruby + SQLite (CLI import) | 3.4.8 / ActiveRecord 8.1.3 | `sqlite3` CLI `.import` + AR query | **0.655s** |
+| 6 | Rust (手書き) | rustc 1.95.0 `--release` | `BufReader` 64KB + RFC 4180 パーサー | **0.677s** |
+| 7 | **Java + univocity-parsers** | OpenJDK 21 | univocity-parsers 2.9.1 | **0.731s** |
+| 8 | Python + pandas | CPython 3.13 (uv) | `read_csv(chunksize=50000)` + chunk `groupby` | **0.876s** |
+| 9 | JavaScript (手書き) | Node.js v25.4.0 | `createReadStream` 64KB + RFC 4180 ステートマシン | **0.909s** |
+| 10 | **JavaScript + PapaParse** | Node.js v25.4.0 | PapaParse 5 `step` コールバック | **1.337s** |
+| 11 | Java (手書き) | OpenJDK 21 | `BufferedReader` + RFC 4180 文字単位パーサー | **1.607s** |
+| 12 | Bash + SQLite | bash 5.2 / sqlite3 3.45.1 | `sqlite3` CLI `.import` + `printf` query | **1.845s** |
+| 13 | Python | CPython 3.13 (uv) | 標準 `csv.DictReader` | **2.235s** |
+| 14 | **JavaScript + csv-parse** | Node.js v25.4.0 | csv-parse 5 async iterator | **2.922s** |
+| 15 | Ruby | 3.4.8 (rbenv) | 標準 `CSV.foreach` | **11.978s** |
 
-> 各値は1回実行の計測時間。Java はJVM起動コストを含む。
+> 各値は1回実行の計測時間。Java はJVM起動コストを含む。**太字**は今回追加した実装。
 
 ## パーサーの実装方針
 
-| 言語 | 手法 | RFC 4180 対応 |
-|------|------|:---:|
-| Python | 標準 `csv.DictReader`（C実装） | ✅ 元から対応 |
-| Python + pandas | `pd.read_csv`（C実装） | ✅ 元から対応 |
-| Go | 標準 `encoding/csv` | ✅ 元から対応 |
-| Ruby | 標準 `CSV.foreach` | ✅ 元から対応 |
-| Ruby + SQLite | 標準 `CSV.foreach` / sqlite3 CLI | ✅ 元から対応 |
-| **JavaScript** | **`createReadStream` 64KB チャンク + RFC 4180 ステートマシン** | ✅ 今回実装 |
-| **Java** | **`BufferedReader` + 文字単位 RFC 4180 パーサー** | ✅ 今回実装 |
-| **C++** | **`fread` 64KB バッファ + RFC 4180 パーサー** | ✅ 今回実装 |
-| **Rust** | **`BufReader::with_capacity(65536)` + RFC 4180 パーサー** | ✅ 今回実装 |
+| 言語・実装 | 手法 | RFC 4180 対応 | SIMD 最適化 |
+|-----------|------|:---:|:---:|
+| Python | 標準 `csv.DictReader`（C実装） | ✅ 元から対応 | ❌ |
+| Python + pandas | `pd.read_csv`（C実装） | ✅ 元から対応 | ❌ |
+| **Python + Polars** | **`scan_csv` lazy API（Rust製 Arrow2 エンジン）** | ✅ | ✅ `memchr` AVX2 |
+| Go | 標準 `encoding/csv` | ✅ 元から対応 | ✅ `bytes.IndexByte` AVX2 |
+| Ruby | 標準 `CSV.foreach` | ✅ 元から対応 | ❌ |
+| Ruby + SQLite | sqlite3 CLI `.import` | ✅ | ❌ |
+| JavaScript (手書き) | `createReadStream` 64KB + RFC 4180 ステートマシン | ✅ 自前実装 | ❌ |
+| **JavaScript + csv-parse** | **async iterator ストリーム** | ✅ | ❌ |
+| **JavaScript + PapaParse** | **`step` コールバックストリーム** | ✅ | ❌ |
+| Java (手書き) | `BufferedReader` + 文字単位 RFC 4180 パーサー | ✅ 自前実装 | ❌ |
+| **Java + univocity-parsers** | **バッファ再利用・アロケーション最小化** | ✅ | ❌ |
+| C++ | `fread` 64KB バッファ + RFC 4180 パーサー | ✅ 自前実装 | ❌ |
+| Rust (手書き) | `BufReader::with_capacity(65536)` + RFC 4180 パーサー | ✅ 自前実装 | ❌ |
+| **Rust + csv crate** | **`csv::ReaderBuilder` + `memchr` SIMD スキャン** | ✅ | ✅ `memchr` AVX2 |
+| Bash + SQLite | sqlite3 CLI `.import` + SQL query | ✅ | ❌ |
 
-JavaScript・Java・C++・Rust はいずれも標準ライブラリに RFC 4180 準拠の CSV パーサーがないため、
+JavaScript・Java・C++・Rust の手書き実装はいずれも標準ライブラリに RFC 4180 準拠の CSV パーサーがないため、
 クォートフィールド・`""` エスケープ・フィールド内改行を正しく扱うパーサーをゼロから実装した。
 
-C++ と Rust はどちらも `BufReader` / `fread` で 64KB ずつ読み込み、`peek()` で次バイトを先読みして `""` エスケープと閉じクォートを区別する同一方式を採用しているため、実行時間もほぼ同等になっている。
+C++ と Rust の手書き実装はどちらも 64KB バッファで読み込み、`peek()` で次バイトを先読みして `""` エスケープと閉じクォートを区別する同一方式を採用しているため、実行時間もほぼ同等になっている。
 
 ## 考察
 
-**Go が最速**。`encoding/csv` は低オーバーヘッドで、ループ内演算もインライン展開されやすい。
+### ライブラリ実装 vs 手書き実装の比較
 
-**Ruby + SQLite (CLI import)** は Go に次ぐ速度。sqlite3 CLI の `.import` がCパーサーで直接CSVをDBに取り込むため、Rubyのループオーバーヘッドがゼロになる。ActiveRecord はクエリ部分のみ担当。
+| 言語 | 手書き実装 | ライブラリ実装 | 差 |
+|------|----------:|-------------:|---:|
+| Rust | 0.677s | 0.236s (csv crate) | **2.9倍速い** |
+| Java | 1.607s | 0.731s (univocity) | **2.2倍速い** |
+| JavaScript | 0.909s | 1.337s (PapaParse) / 2.922s (csv-parse) | ライブラリが遅い |
+| Python | 2.235s | 0.876s (pandas) / **0.084s (Polars)** | **26倍速い** |
 
-**Python + pandas** は純Pythonの `csv` モジュール比で約2.7倍速い。`read_csv` がCで実装されており、`groupby` も vectorized 演算のため効率的。
+Rust と Java では専用ライブラリが手書き実装を大幅に上回る。JavaScript は逆転しており、手書きステートマシンが既存ライブラリより速い（V8 JIT の特性上、シンプルなループがライブラリのオーバーヘッドより有利になる）。
 
-**JavaScript (Node.js)** は独自実装のステートマシンパーサーにもかかわらず Go の約3倍以内に収まる。V8 JIT による文字列操作最適化が効いている。
+### SIMD 最適化の効果
 
-**C++ / Rust** はともに 64KB バッファ読み込み + 独自 RFC 4180 パーサーで 0.64〜0.66s と横並び。C++ は `fread` + `FILE*`、Rust は `BufReader::with_capacity` + `fill_buf` / `consume` という標準的なゼロコピーピーク API を使っており、生成されるコードの質も同等。
+**Python + Polars** (0.084s) と **Rust + csv crate** (0.236s) はいずれも `memchr` クレートを通じた AVX2 SIMD 命令でクォート・改行・カンマのバイトスキャンを行う。同じく AVX2 を使う Go の `encoding/csv` (0.396s) より Rust csv crate が速いのは、csv crate が SIMD スキャンを `csv-core` ステートマシンと直接統合しているため。
 
-**Java** はJVM起動コスト（〜150ms）が支配的で、純粋な処理速度は他と同等以上と推測される。文字単位読み取りは `BufferedReader` がバッファリングするため実質的なI/Oコストは低い。
+Polars が群を抜いて速い（Go の **4.7倍**）のは、SIMD CSV パース + Apache Arrow columnar 形式 + `group_by` の SIMD 集計が全て Rust で一体化しているため。
 
-**Ruby (標準 CSV)** は `CSV.foreach` の実装コストにより他言語より遅いが、コードは最も簡潔。
+### 各実装のまとめ
 
-**Bash + SQLite** は Ruby + SQLite (CLI import) と同じ sqlite3 CLI `.import` を使っているが、Ruby の ActiveRecord 起動コストがない分シンプル。ただし実測では Bash のプロセス起動・`date +%s%N` 計測オーバーヘッドもあり結果はほぼ同等。
+**Python + Polars**: 断トツ最速。SIMD CSV パース + Arrow2 columnar `group_by` の相乗効果。`scan_csv` は lazy API で実際には内部でバッチ処理するがファイルを全てメモリに展開しない。
+
+**Rust + csv crate**: 手書き Rust の約3倍速。`memchr` の SIMD スキャンが効いており、`csv` クレートは Rust エコシステムで事実上の標準。
+
+**Go**: `encoding/csv` が標準ライブラリとして SIMD 最適化済み（AVX2 `bytes.IndexByte`）。依存なし・ゼロ設定で高速。
+
+**Java + univocity-parsers**: 手書き Java の2倍速。バッファ再利用・アロケーション最小化により GC プレッシャーを下げた設計。JVM 起動コスト（〜150ms）込みでも 0.73s。
+
+**PapaParse vs csv-parse**: PapaParse の方が速い。PapaParse はコールバック方式で行単位に同期処理、csv-parse は async iterator で非同期変換オーバーヘッドが大きい。どちらも手書き実装より遅い。
+
+**Ruby + SQLite (CLI import)**: Go に近い速度。sqlite3 CLI の `.import` が C パーサーで直接取り込むため Ruby ループなし。
+
+**C++ / Rust (手書き)**: ともに 0.64〜0.68s で横並び。SIMD なし手書きパーサーの性能限界に収束している。
+
+**Ruby (標準 CSV)**: 15実装中最遅。`CSV.foreach` の Ruby 層オーバーヘッドが支配的。コードは最も簡潔。
 
 ## ファイル構成
 
@@ -101,13 +131,18 @@ csvbench/
 └── bench/
     ├── python/bench.py                # Python 標準 csv
     ├── python_pandas/bench.py         # Python + pandas
-    ├── js/bench.mjs                   # JavaScript (Node.js / RFC 4180 ステートマシン)
-    ├── go/bench.go                    # Go
-    ├── java/BenchCSV.java             # Java (RFC 4180 文字単位パーサー)
+    ├── python_polars/bench.py         # Python + Polars (scan_csv lazy API)
+    ├── js/bench.mjs                   # JavaScript (手書き RFC 4180 ステートマシン)
+    ├── js_csvparse/bench.mjs          # JavaScript + csv-parse
+    ├── js_papaparse/bench.mjs         # JavaScript + PapaParse
+    ├── go/bench.go                    # Go (encoding/csv)
+    ├── java/BenchCSV.java             # Java (手書き RFC 4180 文字単位パーサー)
+    ├── java_univocity/BenchUnivocity.java  # Java + univocity-parsers
     ├── ruby/bench.rb                  # Ruby 標準 CSV
     ├── ruby_sqlite_import/bench.rb    # Ruby + SQLite + ActiveRecord (CLI import)
     ├── cpp/bench.cpp                  # C++ (fread 64KB バッファ + RFC 4180 パーサー)
-    ├── rust/src/main.rs               # Rust (BufReader 64KB + RFC 4180 パーサー)
+    ├── rust/src/main.rs               # Rust (手書き BufReader 64KB + RFC 4180 パーサー)
+    ├── rust_csv/src/main.rs           # Rust + csv crate
     └── bash_sqlite/bench.sh           # Bash + SQLite (CLI .import + printf query)
 ```
 
@@ -120,14 +155,20 @@ bash run_bench.sh
 # 個別実行例
 uv run --python 3.13 bench/python/bench.py
 uv run --python 3.13 --with pandas bench/python_pandas/bench.py
+(cd bench/python_polars && uv run bench.py ../../data/test.csv)
 node bench/js/bench.mjs
+node bench/js_csvparse/bench.mjs
+node bench/js_papaparse/bench.mjs
 go run bench/go/bench.go
 javac -d bench/java/out bench/java/BenchCSV.java && java -cp bench/java/out BenchCSV
+javac -cp bench/java_univocity/lib/univocity-parsers.jar -d bench/java_univocity bench/java_univocity/BenchUnivocity.java
+java -cp bench/java_univocity:bench/java_univocity/lib/univocity-parsers.jar BenchUnivocity data/test.csv
 ruby bench/ruby/bench.rb
 ruby bench/ruby_sqlite_import/bench.rb
-g++ -O2 -std=c++20 -o bench/cpp/bench bench/cpp/bench.cpp && bench/cpp/bench
-cargo build --release --manifest-path bench/rust/Cargo.toml && bench/rust/target/release/bench
-bash bench/bash_sqlite/bench.sh
+g++ -O2 -std=c++20 -o bench/cpp/bench bench/cpp/bench.cpp && bench/cpp/bench data/test.csv
+cargo build --release --manifest-path bench/rust/Cargo.toml && bench/rust/target/release/bench data/test.csv
+cargo build --release --manifest-path bench/rust_csv/Cargo.toml && bench/rust_csv/target/release/bench-csv-crate data/test.csv
+bash bench/bash_sqlite/bench.sh data/test.csv
 ```
 
 ## 開発体験の比較
@@ -198,3 +239,7 @@ bash bench/bash_sqlite/bench.sh
 | sqlite3 CLI | Ruby + SQLite CLI import 版で使用 |
 | activerecord gem | Ruby + SQLite 両版で使用 |
 | Rust (rustup) | Rust 実行 |
+| polars (pip) | Python + Polars (`uv sync` で自動インストール) |
+| csv-parse (npm) | JavaScript + csv-parse (`npm install` 済) |
+| papaparse (npm) | JavaScript + PapaParse (`npm install` 済) |
+| univocity-parsers JAR | Java + univocity (`bench/java_univocity/lib/` に配置済) |

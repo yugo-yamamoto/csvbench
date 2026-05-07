@@ -3,13 +3,19 @@ data/
 
 # Compiled outputs
 bench/java/out/
+bench/java_univocity/*.class
 bench/cpp/bench
 bench/rust/target/
+bench/rust_csv/target/
 
 # Python
 __pycache__/
 *.pyc
 .venv/
+bench/python_polars/.venv/
+
+# Node.js
+node_modules/
 
 # Ruby
 .ruby-version
