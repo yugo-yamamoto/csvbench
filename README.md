@@ -60,6 +60,44 @@
 
 > 各値は1回実行の計測時間。Java はJVM起動コストを含む。**太字**は後から追加した実装。
 
+## メモリ使用量ランキング（ピーク RSS 小さい順）
+
+計測方法: `/usr/bin/time -v` の "Maximum resident set size" (子プロセスを含む)
+
+| # | 実装 | ピーク RSS | 備考 |
+|---|------|----------:|------|
+| 1 | Rust + csv crate | **2.2 MB** | 64KB バッファのみ。ランタイムなし |
+| 2 | Rust (手書き) | **2.2 MB** | 同上 |
+| 3 | C++ | **3.8 MB** | 64KB バッファのみ。ランタイムなし |
+| 4 | Bash + SQLite | **8.1 MB** | SQLite はページ単位 B-tree。全体を展開しない |
+| 5 | Ruby (stdlib CSV) | **13.4 MB** | インタープリタ起動のみ。CSVは1行ずつ処理 |
+| 6 | Go | **19.3 MB** | Goランタイム + goroutineスタック分 |
+| 7 | Python (stdlib csv) | **32.5 MB** | CPythonインタープリタ分 |
+| 8 | JavaScript + csv-parse | **70.6 MB** | V8エンジン起動分 |
+| 9 | JavaScript (手書き) | **74.8 MB** | 同上 |
+| 10 | Python + pandas | **88.7 MB** | chunksize=50000 で常に50,000行分保持 |
+| 11 | JavaScript + PapaParse | **90.7 MB** | 同上 |
+| 12 | Bash + DuckDB | **103.4 MB** | vectorized 集計のための列バッファ |
+| 13 | Ruby + SQLite (CLI import) | **121.0 MB** | ActiveRecord + sqlite3 gem + CLI プロセス |
+| 14 | Java (手書き) | **203.4 MB** | JVMヒープのデフォルト割り当て（実使用は少ない） |
+| 15 | Python + Polars | **212.1 MB** | Arrow2 columnar バッファ（全列をメモリに展開） |
+| 16 | Java + univocity-parsers | **225.1 MB** | 同上（JVMヒープ） |
+
+### 速度 vs メモリのトレードオフ
+
+| 実装 | 速度順位 | メモリ順位 | 傾向 |
+|------|:--------:|:---------:|------|
+| Rust + csv crate | 3位 | **1位** | 速くてメモリも最小 |
+| C++ | 5位 | **3位** | 速くてメモリも小さい |
+| Go | 4位 | 6位 | バランス良好 |
+| Python + Polars | **1位** | 15位 | 最速だがメモリ大（Arrow columnar） |
+| Bash + DuckDB | **2位** | 12位 | 速いがベクトルバッファ分メモリ必要 |
+| Java (手書き) | 12位 | 14位 | 遅くてメモリも大きい（JVMオーバーヘッド） |
+| Bash + SQLite | 13位 | **4位** | 遅いがメモリ極小 |
+| Ruby (stdlib CSV) | 16位 | 5位 | 最遅だがメモリは少ない |
+
+**SIMD/vectorized 系は速さとメモリの両立が難しい**: Polars と DuckDB は SIMD 集計のために列データをメモリに展開する必要があるため、ストリーム処理系より大幅にメモリを使う。**メモリ制約が厳しい環境では Rust / C++ / Go が最良の選択**。
+
 ## パーサーの実装方針
 
 | 言語・実装 | 手法 | RFC 4180 対応 | SIMD 最適化 |
